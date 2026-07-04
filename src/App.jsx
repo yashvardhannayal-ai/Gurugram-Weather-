@@ -196,9 +196,60 @@ function DriveScene({ isDay, isRaining, isHot }) {
   );
 }
 
-const LAT = 28.4595;
-const LON = 77.0266;
-const BASE_PARAMS = "temperature_2m,wind_speed_10m,relative_humidity_2m";
+// Facts I can actually stand behind — sourced from IMD/NDMA material verified earlier
+// in this build, not invented trivia. Numbers flagged as approximate where sources varied.
+const FACTS = [
+  "IMD only calls a Heat Wave once max temperature hits 40°C+ on the plains — AND is at least 4.5°C above normal.",
+  "A Heat Wave isn't declared from one hot day — IMD requires the criteria to hold for 2 consecutive days.",
+  "Severe Heat Wave, by absolute value: max temperature of 45°C or higher, regardless of what's \"normal\" for the date.",
+  "Gurugram sits in IMD's \"plains\" category, which uses a 40°C threshold — hillier regions use a lower 30°C bar.",
+  "Cold Wave criteria (plains): minimum temperature at or below 10°C, with a departure of roughly -4.5°C to -6.4°C from normal.",
+  "This dashboard's live data comes from Open-Meteo, a free, non-commercial, no-API-key weather service.",
+  "Approximately: IMD classifies rainfall as \"extremely heavy\" above roughly 204.5mm in a day — sources vary slightly on the exact cutoff, worth checking IMD directly.",
+];
+
+function TriviaStrip() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((n) => (n + 1) % FACTS.length), 5000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div style={{ marginTop: 22, padding: "16px 20px", background: "linear-gradient(90deg, rgba(255,111,181,0.12), rgba(123,97,255,0.12), rgba(0,229,199,0.12))", border: "1px solid #3A2A5C", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "#FFD23F", flexShrink: 0 }}>Know this?</div>
+      <div key={i} style={{ fontSize: 13, color: "#E8E0FA", lineHeight: 1.5, animation: "popIn 0.4s ease-out" }}>{FACTS[i]}</div>
+    </div>
+  );
+}
+
+const IMD_THRESHOLDS = [
+  { label: "Heat Wave", detail: "Plains: 40°C+ and \u22654.5\u20136.4°C above normal", color: "#FF9F1C" },
+  { label: "Severe Heat Wave", detail: "Absolute: 45°C or higher", color: "#FF3D7F" },
+  { label: "Cold Wave", detail: "Plains: \u226410°C, ~-4.5 to -6.4°C below normal", color: "#5CC8FF" },
+  { label: "Severe Cold Wave", detail: "Departure of more than ~-6.4°C from normal", color: "#7B61FF" },
+];
+
+function ThresholdPanel() {
+  return (
+    <div style={{ marginTop: 24, padding: 20, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14 }}>
+      <div style={{ fontSize: 12, color: "#B8AEDB", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 14 }}>IMD threshold reference — plains</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        {IMD_THRESHOLDS.map((t) => (
+          <div key={t.label} style={{ padding: 14, borderRadius: 10, background: `${t.color}12`, border: `1px solid ${t.color}44` }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.color, marginBottom: 4 }}>{t.label}</div>
+            <div style={{ fontSize: 12, color: "#B8AEDB", lineHeight: 1.5 }}>{t.detail}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 12, fontSize: 11, color: "#7A6F98", lineHeight: 1.5 }}>
+        These figures come from IMD/NDMA material and may not reflect the most current official
+        criteria — worth confirming on mausam.imd.gov.in if precision matters for your use.
+      </div>
+    </div>
+  );
+}
+
+
 const FULL_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=${BASE_PARAMS},precipitation&timezone=Asia%2FKolkata`;
 const FALLBACK_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=${BASE_PARAMS}&timezone=Asia%2FKolkata`;
 
@@ -226,7 +277,7 @@ export default function WeatherDashboard() {
   const [liveError, setLiveError] = useState("");
   const [pulseCount, setPulseCount] = useState(0);
   const [shakeKey, setShakeKey] = useState(0);
-  const [scene, setScene] = useState(null);
+  const [scene, setScene] = useState(() => pickScene(SEED[SEED.length - 1]));
   const fileRef = React.useRef(null);
 
   const fetchLive = useCallback(async () => {
@@ -244,7 +295,6 @@ export default function WeatherDashboard() {
       setPulseCount((n) => n + 1);
       if (classify(newRow.temp).key === "severe") setShakeKey((k) => k + 1);
       setScene(pickScene(newRow));
-      setTimeout(() => setScene(null), 6000);
     } catch (err) {
       setLiveError(err instanceof Error ? `Couldn't fetch live weather: ${err.message}` : "Couldn't fetch live weather.");
     } finally {
@@ -309,35 +359,40 @@ export default function WeatherDashboard() {
           <div style={{ fontSize: 12, color: "#B8AEDB", fontFamily: "ui-monospace, monospace" }}>28.4595°N, 77.0266°E · plains</div>
         </div>
 
-        <div style={{ marginTop: 26, position: "relative", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 16px", background: "rgba(20,12,34,0.55)", backdropFilter: "blur(10px)", border: "1px solid #3A2A5C", borderRadius: 16, overflow: "hidden", minHeight: scene ? 300 : 260 }}>
-          {scene && <DriveScene isDay={scene.isDay} isRaining={scene.isRaining} isHot={scene.isHot} />}
-          <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", marginTop: scene ? 180 : 12 }}>
-            <div style={{ position: "relative", width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {!liveLoading && (<>
-                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite" }} />
-                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite 1.1s" }} />
-              </>)}
-              <button onClick={fetchLive} disabled={liveLoading} style={{
-                position: "relative", width: 120, height: 120, borderRadius: "50%", border: "none",
-                background: `conic-gradient(from 180deg, #FF6FB5, #7B61FF, #00E5C7, #FFD23F, #FF6FB5)`,
-                color: "#0A0616", fontWeight: 800, fontSize: 14, letterSpacing: 0.3,
-                cursor: liveLoading ? "default" : "pointer", boxShadow: `0 0 50px ${zone.color}55`,
-                transition: "transform 0.15s ease", whiteSpace: "pre-line",
-              }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
-                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              >
-                {liveLoading ? "CHECKING…" : "CHECK\nTHE SKY"}
-              </button>
-            </div>
-            <div style={{ marginTop: 14, fontSize: 13, color: "#D8CFF0", textAlign: "center" }}>Tap for a live reading — watch the drive react to it.</div>
-            <div style={{ marginTop: 6, fontSize: 12, color: "#8A7FB0", fontFamily: "ui-monospace, monospace" }}>
+        <div style={{ marginTop: 26, position: "relative", overflow: "hidden", borderRadius: 16, border: "1px solid #3A2A5C", height: 240 }}>
+          <DriveScene isDay={scene.isDay} isRaining={scene.isRaining} isHot={scene.isHot} />
+        </div>
+
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 20, flexWrap: "wrap", padding: "16px 20px", background: "rgba(20,12,34,0.55)", backdropFilter: "blur(10px)", border: "1px solid #3A2A5C", borderRadius: 16 }}>
+          <div style={{ position: "relative", width: 92, height: 92, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {!liveLoading && (<>
+              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite" }} />
+              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite 1.1s" }} />
+            </>)}
+            <button onClick={fetchLive} disabled={liveLoading} style={{
+              position: "relative", width: 76, height: 76, borderRadius: "50%", border: "none",
+              background: `conic-gradient(from 180deg, #FF6FB5, #7B61FF, #00E5C7, #FFD23F, #FF6FB5)`,
+              color: "#0A0616", fontWeight: 800, fontSize: 10.5, letterSpacing: 0.2,
+              cursor: liveLoading ? "default" : "pointer", boxShadow: `0 0 30px ${zone.color}55`,
+              transition: "transform 0.15s ease", whiteSpace: "pre-line",
+            }}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            >
+              {liveLoading ? "CHECKING…" : "CHECK\nTHE SKY"}
+            </button>
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ fontSize: 13, color: "#D8CFF0" }}>Tap for a live reading — watch the drive react to it.</div>
+            <div style={{ marginTop: 4, fontSize: 12, color: "#8A7FB0", fontFamily: "ui-monospace, monospace" }}>
               {pulseCount === 0 ? "You haven't checked yet this session" : `Checked ${pulseCount} time${pulseCount > 1 ? "s" : ""} this session`}
             </div>
-            {liveError && <div style={{ marginTop: 10, fontSize: 12, color: "#FF3D7F" }}>{liveError}</div>}
+            {liveError && <div style={{ marginTop: 6, fontSize: 12, color: "#FF3D7F" }}>{liveError}</div>}
           </div>
         </div>
+
+        <TriviaStrip />
 
         {showAlert && (
           <div key={`alert-${latest.time}`} style={{ marginTop: 18, padding: "12px 16px", borderRadius: 10, background: `${zone.color}1a`, border: `1px solid ${zone.color}66`, display: "flex", alignItems: "center", gap: 10, animation: "popIn 0.4s ease-out" }}>
@@ -378,6 +433,8 @@ export default function WeatherDashboard() {
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        <ThresholdPanel />
 
         <div style={{ marginTop: 24, padding: 16, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14 }}>
           <div style={{ fontSize: 13, color: "#B8AEDB", lineHeight: 1.6 }}>
