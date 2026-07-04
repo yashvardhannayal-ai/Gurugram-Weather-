@@ -17,9 +17,9 @@ const SEED = [
 ];
 
 const ZONES = [
-  { key: "normal", label: "Normal", color: "#00E5C7" },
+  { key: "normal", label: "Normal", color: "#4FA8E0" },
   { key: "heat", label: "Heat Wave", color: "#FF9F1C" },
-  { key: "severe", label: "Severe Heat Wave", color: "#FF3D7F" },
+  { key: "severe", label: "Severe Heat Wave", color: "#E5484D" },
 ];
 
 function classify(temp) {
@@ -61,7 +61,7 @@ function pickScene(row) {
   const isDay = hour >= 6 && hour < 19;
   const isRaining = (row.precip ?? 0) > 0.1;
   const isHot = row.temp >= 38;
-  return { isDay, isRaining, isHot };
+  return { isDay, isRaining, isHot, temp: row.temp };
 }
 
 function Gauge({ temp }) {
@@ -79,12 +79,12 @@ function Gauge({ temp }) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       <svg width="220" height="140" viewBox="0 0 220 140">
         {arc(180, 240, "#00E5C7", "z0")}{arc(240, 300, "#FF9F1C", "z1")}{arc(300, 360, "#FF3D7F", "z2")}
-        <line x1={cx} y1={cy} x2={cx + r * 0.75 * Math.cos((angle * Math.PI) / 180)} y2={cy + r * 0.75 * Math.sin((angle * Math.PI) / 180)} stroke="#F5F0FF" strokeWidth={3} strokeLinecap="round" style={{ transition: "all 0.6s cubic-bezier(0.34,1.56,0.64,1)" }} />
-        <circle cx={cx} cy={cy} r={5} fill="#F5F0FF" />
+        <line x1={cx} y1={cy} x2={cx + r * 0.75 * Math.cos((angle * Math.PI) / 180)} y2={cy + r * 0.75 * Math.sin((angle * Math.PI) / 180)} stroke="#EDEEF0" strokeWidth={3} strokeLinecap="round" style={{ transition: "all 0.6s cubic-bezier(0.34,1.56,0.64,1)" }} />
+        <circle cx={cx} cy={cy} r={5} fill="#EDEEF0" />
       </svg>
       <div style={{ marginTop: -8, textAlign: "center" }}>
-        <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 44, fontWeight: 700, color: "#F5F0FF", lineHeight: 1 }}>
-          {temp.toFixed(1)}<span style={{ fontSize: 20, color: "#B8AEDB" }}>°C</span>
+        <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 44, fontWeight: 700, color: "#EDEEF0", lineHeight: 1 }}>
+          {temp.toFixed(1)}<span style={{ fontSize: 20, color: "#8B9198" }}>°C</span>
         </div>
         <div style={{ marginTop: 6, display: "inline-block", padding: "3px 12px", borderRadius: 999, fontSize: 12, letterSpacing: 0.4, textTransform: "uppercase", color: zone.color, border: `1px solid ${zone.color}66`, background: `${zone.color}1a` }}>{zone.label}</div>
       </div>
@@ -94,15 +94,15 @@ function Gauge({ temp }) {
 
 function ScoreCard({ label, value, unit, accent }) {
   return (
-    <div style={{ background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14, padding: "16px 18px", flex: 1, minWidth: 130 }}>
-      <div style={{ fontSize: 12, color: "#B8AEDB", letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 28, fontWeight: 700, color: accent }}>{value}<span style={{ fontSize: 14, color: "#B8AEDB", marginLeft: 4 }}>{unit}</span></div>
+    <div style={{ background: "#14171A", border: "1px solid #23272B", borderRadius: 14, padding: "16px 18px", flex: 1, minWidth: 130 }}>
+      <div style={{ fontSize: 12, color: "#8B9198", letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 28, fontWeight: 700, color: accent }}>{value}<span style={{ fontSize: 14, color: "#8B9198", marginLeft: 4 }}>{unit}</span></div>
     </div>
   );
 }
 
 // ---- The drive scene: car + driver silhouette cruising down a scrolling road ----
-function DriveScene({ isDay, isRaining, isHot }) {
+function DriveScene({ isDay, isRaining, isHot, temp }) {
   const sky = isRaining
     ? (isDay ? "linear-gradient(180deg,#4A5568,#2D3346)" : "linear-gradient(180deg,#151726,#0A0B14)")
     : isDay
@@ -111,10 +111,29 @@ function DriveScene({ isDay, isRaining, isHot }) {
 
   const stars = useMemo(() => Array.from({ length: 25 }, () => ({ top: Math.random() * 55, left: Math.random() * 100, d: 1.2 + Math.random() * 1.5 })), []);
   const drops = useMemo(() => Array.from({ length: 40 }, () => ({ left: Math.random() * 100, delay: Math.random() * 1.2, dur: 0.5 + Math.random() * 0.4 })), []);
-  const hills = useMemo(() => Array.from({ length: 6 }, (_, i) => i), []);
+  const buildings = useMemo(() => Array.from({ length: 10 }, () => {
+    const w = 26 + Math.floor(Math.random() * 18);
+    const h = 40 + Math.floor(Math.random() * 50);
+    const cols = Math.max(1, Math.floor(w / 10));
+    const rows = Math.max(1, Math.floor(h / 12));
+    const windows = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        windows.push({ x: 4 + c * 9, y: 6 + r * 11, on: Math.random() > 0.4 });
+      }
+    }
+    return { w, h, windows };
+  }), []);
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: 16, background: sky }}>
+      {/* temperature readout, always visible in the scene */}
+      {temp != null && (
+        <div style={{ position: "absolute", top: 12, left: 14, padding: "4px 10px", borderRadius: 8, background: "rgba(0,0,0,0.35)", color: "#EDEEF0", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 15, fontWeight: 700 }}>
+          {temp.toFixed(1)}°C
+        </div>
+      )}
+
       {/* sun or moon */}
       {!isRaining && (
         <div style={{
@@ -125,21 +144,24 @@ function DriveScene({ isDay, isRaining, isHot }) {
       )}
       {/* stars, night only */}
       {!isDay && !isRaining && stars.map((s, i) => (
-        <span key={i} style={{ position: "absolute", top: `${s.top}%`, left: `${s.left}%`, width: 2, height: 2, borderRadius: "50%", background: "#F5F0FF", animation: `twinkle ${s.d}s ease-in-out infinite` }} />
+        <span key={i} style={{ position: "absolute", top: `${s.top}%`, left: `${s.left}%`, width: 2, height: 2, borderRadius: "50%", background: "#EDEEF0", animation: `twinkle ${s.d}s ease-in-out infinite` }} />
       ))}
       {/* clouds if raining */}
       {isRaining && [0, 1, 2].map((i) => (
         <div key={i} style={{ position: "absolute", top: 16 + i * 14, left: -80, width: 140, height: 34, borderRadius: 30, background: isDay ? "#5A6478" : "#20233A", animation: `driftCloud ${9 + i * 3}s linear infinite`, animationDelay: `${i * -3}s`, opacity: 0.8 }} />
       ))}
       {/* lightning flash */}
-      {isRaining && <div style={{ position: "absolute", inset: 0, background: "#F5F0FF", opacity: 0, animation: "lightning 5s ease-in-out infinite" }} />}
+      {isRaining && <div style={{ position: "absolute", inset: 0, background: "#EDEEF0", opacity: 0, animation: "lightning 5s ease-in-out infinite" }} />}
 
-      {/* rolling hills silhouette, parallax loop */}
-      <div style={{ position: "absolute", bottom: 46, left: 0, right: 0, height: 60, overflow: "hidden" }}>
-        <div style={{ display: "flex", width: "200%", animation: "scrollX 14s linear infinite" }}>
-          {hills.concat(hills).map((_, i) => (
-            <svg key={i} width="180" height="60" viewBox="0 0 180 60" style={{ flexShrink: 0 }}>
-              <path d="M0,60 Q45,10 90,45 T180,60 Z" fill={isDay ? "#2F6B4F" : "#150F2A"} opacity={0.9} />
+      {/* city skyline, parallax loop, windows lit at night */}
+      <div style={{ position: "absolute", bottom: 46, left: 0, right: 0, height: 90, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", width: "200%", animation: "scrollX 16s linear infinite" }}>
+          {buildings.concat(buildings).map((b, i) => (
+            <svg key={i} width={b.w} height={b.h} viewBox={`0 0 ${b.w} ${b.h}`} style={{ flexShrink: 0, marginRight: 4 }}>
+              <rect x="0" y="0" width={b.w} height={b.h} fill="#111318" />
+              {!isDay && b.windows.map((w, wi) => (
+                <rect key={wi} x={w.x} y={w.y} width="4" height="5" fill="#FFD98A" opacity={w.on ? 0.95 : 0} style={{ animation: w.on ? `twinkle ${2 + (wi % 3)}s ease-in-out infinite` : "none" }} />
+              ))}
             </svg>
           ))}
         </div>
@@ -150,7 +172,7 @@ function DriveScene({ isDay, isRaining, isHot }) {
         <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: 4, overflow: "hidden" }}>
           <div style={{ display: "flex", width: "200%", animation: "scrollX 0.9s linear infinite" }}>
             {Array.from({ length: 20 }).map((_, i) => (
-              <div key={i} style={{ width: 26, height: 4, background: "#F5F0FF", marginRight: 22, flexShrink: 0, opacity: 0.7 }} />
+              <div key={i} style={{ width: 26, height: 4, background: "#EDEEF0", marginRight: 22, flexShrink: 0, opacity: 0.7 }} />
             ))}
           </div>
         </div>
@@ -169,7 +191,7 @@ function DriveScene({ isDay, isRaining, isHot }) {
             <polygon points="100,30 150,10 150,45" fill="#FFF3C4" opacity="0.25" />
           )}
           {/* car body */}
-          <path d="M10,40 Q10,26 26,26 L40,26 Q48,12 66,12 L82,12 Q94,12 98,26 L108,26 Q116,26 116,36 L116,42 Q116,46 112,46 L14,46 Q10,46 10,42 Z" fill={isRaining ? "#7B61FF" : "#FF6FB5"} />
+          <path d="M10,40 Q10,26 26,26 L40,26 Q48,12 66,12 L82,12 Q94,12 98,26 L108,26 Q116,26 116,36 L116,42 Q116,46 112,46 L14,46 Q10,46 10,42 Z" fill="#FF7A45" />
           {/* window */}
           <path d="M46,26 Q52,16 66,16 L80,16 Q88,16 92,26 Z" fill={isDay ? "#BEE7F5" : "#0A0B18"} />
           {/* driver silhouette */}
@@ -178,13 +200,13 @@ function DriveScene({ isDay, isRaining, isHot }) {
           {/* wheels */}
           <circle cx="34" cy="46" r="8" fill="#111" />
           <circle cx="96" cy="46" r="8" fill="#111" />
-          <circle cx="34" cy="46" r="3" fill="#F5F0FF" style={{ animation: "spin 0.5s linear infinite", transformOrigin: "34px 46px" }} />
-          <circle cx="96" cy="46" r="3" fill="#F5F0FF" style={{ animation: "spin 0.5s linear infinite", transformOrigin: "96px 46px" }} />
+          <circle cx="34" cy="46" r="3" fill="#EDEEF0" style={{ animation: "spin 0.5s linear infinite", transformOrigin: "34px 46px" }} />
+          <circle cx="96" cy="46" r="3" fill="#EDEEF0" style={{ animation: "spin 0.5s linear infinite", transformOrigin: "96px 46px" }} />
         </svg>
         {/* wind flow lines behind the car */}
         <svg width="60" height="40" viewBox="0 0 60 40" style={{ position: "absolute", top: 10, right: 108 }}>
-          <path d="M50,10 Q20,10 0,10" stroke="#F5F0FF" strokeWidth="1.5" fill="none" opacity="0.4" strokeDasharray="4 4" style={{ animation: "windFlow 0.7s linear infinite" }} />
-          <path d="M50,22 Q20,22 0,22" stroke="#F5F0FF" strokeWidth="1.5" fill="none" opacity="0.3" strokeDasharray="4 4" style={{ animation: "windFlow 0.8s linear infinite" }} />
+          <path d="M50,10 Q20,10 0,10" stroke="#EDEEF0" strokeWidth="1.5" fill="none" opacity="0.4" strokeDasharray="4 4" style={{ animation: "windFlow 0.7s linear infinite" }} />
+          <path d="M50,22 Q20,22 0,22" stroke="#EDEEF0" strokeWidth="1.5" fill="none" opacity="0.3" strokeDasharray="4 4" style={{ animation: "windFlow 0.8s linear infinite" }} />
         </svg>
       </div>
 
@@ -215,9 +237,9 @@ function TriviaStrip() {
     return () => clearInterval(id);
   }, []);
   return (
-    <div style={{ marginTop: 22, padding: "16px 20px", background: "linear-gradient(90deg, rgba(255,111,181,0.12), rgba(123,97,255,0.12), rgba(0,229,199,0.12))", border: "1px solid #3A2A5C", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "#FFD23F", flexShrink: 0 }}>Know this?</div>
-      <div key={i} style={{ fontSize: 13, color: "#E8E0FA", lineHeight: 1.5, animation: "popIn 0.4s ease-out" }}>{FACTS[i]}</div>
+    <div style={{ marginTop: 22, padding: "16px 20px", background: "#14171A", border: "1px solid #23272B", borderRadius: 14, display: "flex", alignItems: "center", gap: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: "#EDEEF0", flexShrink: 0 }}>Know this?</div>
+      <div key={i} style={{ fontSize: 13, color: "#C7CBD1", lineHeight: 1.5, animation: "popIn 0.4s ease-out" }}>{FACTS[i]}</div>
     </div>
   );
 }
@@ -231,17 +253,17 @@ const IMD_THRESHOLDS = [
 
 function ThresholdPanel() {
   return (
-    <div style={{ marginTop: 24, padding: 20, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14 }}>
-      <div style={{ fontSize: 12, color: "#B8AEDB", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 14 }}>IMD threshold reference — plains</div>
+    <div style={{ marginTop: 24, padding: 20, background: "#14171A", border: "1px solid #23272B", borderRadius: 14 }}>
+      <div style={{ fontSize: 12, color: "#8B9198", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 14 }}>IMD threshold reference — plains</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
         {IMD_THRESHOLDS.map((t) => (
           <div key={t.label} style={{ padding: 14, borderRadius: 10, background: `${t.color}12`, border: `1px solid ${t.color}44` }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.color, marginBottom: 4 }}>{t.label}</div>
-            <div style={{ fontSize: 12, color: "#B8AEDB", lineHeight: 1.5 }}>{t.detail}</div>
+            <div style={{ fontSize: 12, color: "#8B9198", lineHeight: 1.5 }}>{t.detail}</div>
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 12, fontSize: 11, color: "#7A6F98", lineHeight: 1.5 }}>
+      <div style={{ marginTop: 12, fontSize: 11, color: "#6B7280", lineHeight: 1.5 }}>
         These figures come from IMD/NDMA material and may not reflect the most current official
         criteria — worth confirming on mausam.imd.gov.in if precision matters for your use.
       </div>
@@ -345,50 +367,46 @@ export default function WeatherDashboard() {
 
   return (
     <div key={shakeKey} style={{
-      minHeight: "100%", color: "#F5F0FF",
+      minHeight: "100%", color: "#EDEEF0",
       fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       padding: "28px 20px 40px", position: "relative", overflow: "hidden",
-      background: "linear-gradient(120deg, #0A0616, #1A0E32, #24123F, #150A28)",
-      backgroundSize: "300% 300%", animation: `bgDrift 18s ease-in-out infinite${shakeKey > 0 ? ", shake 0.5s" : ""}`,
+      background: "#0B0D0F",
+      animation: shakeKey > 0 ? "shake 0.5s" : "none",
     }}>
       <style>{KEYFRAMES}</style>
 
       <div style={{ maxWidth: 880, margin: "0 auto", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
           <div>
-            <div style={{ fontSize: 12, color: "#B8AEDB", letterSpacing: 1.5, textTransform: "uppercase" }}>Weather Monitor</div>
-            <h1 style={{ margin: "2px 0 0", fontSize: 28, fontWeight: 800, background: "linear-gradient(90deg,#FF6FB5,#7B61FF,#00E5C7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Gurugram, India</h1>
+            <div style={{ fontSize: 12, color: "#8B9198", letterSpacing: 1.5, textTransform: "uppercase" }}>Weather Monitor</div>
+            <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 600, color: "#EDEEF0" }}>Gurugram, India</h1>
           </div>
-          <div style={{ fontSize: 12, color: "#B8AEDB", fontFamily: "ui-monospace, monospace" }}>28.4595°N, 77.0266°E · plains</div>
+          <div style={{ fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>28.4595°N, 77.0266°E · plains</div>
         </div>
 
-        <div style={{ marginTop: 26, position: "relative", overflow: "hidden", borderRadius: 16, border: "1px solid #3A2A5C", height: 240 }}>
-          <DriveScene isDay={scene.isDay} isRaining={scene.isRaining} isHot={scene.isHot} />
+        <div style={{ marginTop: 26, position: "relative", overflow: "hidden", borderRadius: 16, border: "1px solid #23272B", height: 240 }}>
+          <DriveScene isDay={scene.isDay} isRaining={scene.isRaining} isHot={scene.isHot} temp={scene.temp} />
         </div>
 
-        <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 20, flexWrap: "wrap", padding: "16px 20px", background: "rgba(20,12,34,0.55)", backdropFilter: "blur(10px)", border: "1px solid #3A2A5C", borderRadius: 16 }}>
-          <div style={{ position: "relative", width: 92, height: 92, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {!liveLoading && (<>
-              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite" }} />
-              <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite 1.1s" }} />
-            </>)}
-            <button onClick={fetchLive} disabled={liveLoading} style={{
-              position: "relative", width: 76, height: 76, borderRadius: "50%", border: "none",
-              background: `conic-gradient(from 180deg, #FF6FB5, #7B61FF, #00E5C7, #FFD23F, #FF6FB5)`,
-              color: "#0A0616", fontWeight: 800, fontSize: 10.5, letterSpacing: 0.2,
-              cursor: liveLoading ? "default" : "pointer", boxShadow: `0 0 30px ${zone.color}55`,
-              transition: "transform 0.15s ease", whiteSpace: "pre-line",
-            }}
-              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
-              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-            >
-              {liveLoading ? "CHECKING…" : "CHECK\nTHE SKY"}
-            </button>
-          </div>
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", padding: "14px 20px", background: "#14171A", border: "1px solid #23272B", borderRadius: 14 }}>
+          <button onClick={fetchLive} disabled={liveLoading} style={{
+            padding: "10px 22px", borderRadius: 999, border: "none",
+            background: liveLoading ? "#23272B" : "#EDEEF0",
+            color: liveLoading ? "#8B9198" : "#0B0D0F",
+            fontWeight: 700, fontSize: 13, letterSpacing: 0.3,
+            cursor: liveLoading ? "default" : "pointer",
+            boxShadow: liveLoading ? "none" : `0 0 16px ${zone.color}55`,
+            transition: "transform 0.15s ease",
+          }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.96)")}
+            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            {liveLoading ? "Checking…" : "Check the Sky"}
+          </button>
           <div style={{ textAlign: "left" }}>
-            <div style={{ fontSize: 13, color: "#D8CFF0" }}>Tap for a live reading — watch the drive react to it.</div>
-            <div style={{ marginTop: 4, fontSize: 12, color: "#8A7FB0", fontFamily: "ui-monospace, monospace" }}>
+            <div style={{ fontSize: 13, color: "#C7CBD1" }}>Tap for a live reading — watch the drive react to it.</div>
+            <div style={{ marginTop: 4, fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>
               {pulseCount === 0 ? "You haven't checked yet this session" : `Checked ${pulseCount} time${pulseCount > 1 ? "s" : ""} this session`}
             </div>
             {liveError && <div style={{ marginTop: 6, fontSize: 12, color: "#FF3D7F" }}>{liveError}</div>}
@@ -405,45 +423,45 @@ export default function WeatherDashboard() {
         )}
 
         <div style={{ marginTop: 22, display: "flex", gap: 20, flexWrap: "wrap" }}>
-          <div style={{ background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14, padding: 16 }}>
+          <div style={{ background: "#14171A", border: "1px solid #23272B", borderRadius: 14, padding: 16 }}>
             <Gauge temp={dispTemp} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minWidth: 260 }}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <ScoreCard label="Temperature" value={dispTemp.toFixed(1)} unit="°C" accent="#FF9F1C" />
-              <ScoreCard label="Humidity" value={Math.round(dispHumidity)} unit="%" accent="#00E5C7" />
-              <ScoreCard label="Wind" value={dispWind.toFixed(1)} unit="km/h" accent="#7B61FF" />
+              <ScoreCard label="Temperature" value={dispTemp.toFixed(1)} unit="°C" accent="#FF7A45" />
+              <ScoreCard label="Humidity" value={Math.round(dispHumidity)} unit="%" accent="#4FA8E0" />
+              <ScoreCard label="Wind" value={dispWind.toFixed(1)} unit="km/h" accent="#8B9198" />
             </div>
-            <div style={{ fontSize: 12, color: "#8A7FB0" }}>Last reading: {fmtTime(latest.time)}</div>
+            <div style={{ fontSize: 12, color: "#8B9198" }}>Last reading: {fmtTime(latest.time)}</div>
           </div>
         </div>
 
         <div style={{ marginTop: 26, display: "flex", gap: 8 }}>
           {[{ k: "24h", label: "24h" }, { k: "7d", label: "7 days" }, { k: "all", label: "All" }].map((r) => (
-            <button key={r.k} onClick={() => setRange(r.k)} style={{ background: range === r.k ? "linear-gradient(90deg,#FF6FB5,#7B61FF)" : "transparent", color: range === r.k ? "#0A0616" : "#B8AEDB", border: "1px solid #3A2A5C", borderRadius: 8, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: range === r.k ? 700 : 400 }}>{r.label}</button>
+            <button key={r.k} onClick={() => setRange(r.k)} style={{ background: range === r.k ? "#EDEEF0" : "transparent", color: range === r.k ? "#0B0D0F" : "#8B9198", border: "1px solid #23272B", borderRadius: 8, padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: range === r.k ? 700 : 400 }}>{r.label}</button>
           ))}
         </div>
 
-        <div style={{ marginTop: 14, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14, padding: "16px 8px 8px" }}>
-          <div style={{ fontSize: 12, color: "#B8AEDB", padding: "0 12px 8px", textTransform: "uppercase", letterSpacing: 0.3 }}>Temperature trend</div>
+        <div style={{ marginTop: 14, background: "#14171A", border: "1px solid #23272B", borderRadius: 14, padding: "16px 8px 8px" }}>
+          <div style={{ fontSize: 12, color: "#8B9198", padding: "0 12px 8px", textTransform: "uppercase", letterSpacing: 0.3 }}>Temperature trend</div>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid stroke="#3A2A5C" strokeDasharray="3 3" />
-              <XAxis dataKey="label" stroke="#8A7FB0" fontSize={11} tickLine={false} />
-              <YAxis stroke="#8A7FB0" fontSize={11} tickLine={false} domain={[20, 50]} />
-              <Tooltip contentStyle={{ background: "#0A0616", border: "1px solid #3A2A5C", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#B8AEDB" }} />
-              <Line type="monotone" dataKey="temp" stroke="#FF6FB5" strokeWidth={2.5} dot={{ r: 3, fill: "#7B61FF" }} name="°C" isAnimationActive animationDuration={500} />
+              <CartesianGrid stroke="#23272B" strokeDasharray="3 3" />
+              <XAxis dataKey="label" stroke="#8B9198" fontSize={11} tickLine={false} />
+              <YAxis stroke="#8B9198" fontSize={11} tickLine={false} domain={[20, 50]} />
+              <Tooltip contentStyle={{ background: "#0A0616", border: "1px solid #23272B", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#8B9198" }} />
+              <Line type="monotone" dataKey="temp" stroke="#FF9F1C" strokeWidth={2.5} dot={{ r: 3, fill: "#EDEEF0" }} name="°C" isAnimationActive animationDuration={500} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
         <ThresholdPanel />
 
-        <div style={{ marginTop: 24, padding: 16, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14 }}>
-          <div style={{ fontSize: 13, color: "#B8AEDB", lineHeight: 1.6 }}>
+        <div style={{ marginTop: 24, padding: 16, background: "#14171A", border: "1px solid #23272B", borderRadius: 14 }}>
+          <div style={{ fontSize: 13, color: "#8B9198", lineHeight: 1.6 }}>
             This dashboard can't authenticate to your private Google Sheet directly. Use "Check the Sky" above for a live reading, or upload a CSV export of your sheet below.
           </div>
-          <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ marginTop: 12, fontSize: 13, color: "#B8AEDB" }} />
+          <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ marginTop: 12, fontSize: 13, color: "#8B9198" }} />
           {importMsg && <div style={{ marginTop: 8, fontSize: 12, color: "#00E5C7" }}>{importMsg}</div>}
         </div>
       </div>
