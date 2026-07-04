@@ -152,11 +152,48 @@ function ScoreCard({ label, value, unit, accent }) {
   );
 }
 
+const LAT = 28.4595;
+const LON = 77.0266;
+const OPEN_METEO_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,wind_speed_10m,relative_humidity_2m`;
+
 export default function WeatherDashboard() {
   const [rows, setRows] = useState(SEED);
   const [range, setRange] = useState("all");
   const [importMsg, setImportMsg] = useState("");
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState("");
   const fileRef = React.useRef(null);
+
+  const fetchLive = useCallback(async () => {
+    setLiveLoading(true);
+    setLiveError("");
+    try {
+      const res = await fetch(OPEN_METEO_URL);
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data = await res.json();
+      const c = data.current;
+      if (!c) throw new Error("Response didn't include current-weather data.");
+      const newRow = {
+        time: c.time,
+        temp: c.temperature_2m,
+        wind: c.wind_speed_10m,
+        humidity: c.relative_humidity_2m,
+      };
+      setRows((prev) => {
+        // avoid an exact duplicate if the same timestamp is fetched twice in a row
+        if (prev.length && prev[prev.length - 1].time === newRow.time) return prev;
+        return [...prev, newRow];
+      });
+    } catch (err) {
+      setLiveError(
+        err instanceof Error
+          ? `Couldn't fetch live weather: ${err.message}`
+          : "Couldn't fetch live weather."
+      );
+    } finally {
+      setLiveLoading(false);
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     if (range === "all") return rows;
@@ -228,10 +265,31 @@ export default function WeatherDashboard() {
             </div>
             <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 600 }}>Gurugram, India</h1>
           </div>
-          <div style={{ fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>
-            28.4595°N, 77.0266°E · plains
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+            <div style={{ fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>
+              28.4595°N, 77.0266°E · plains
+            </div>
+            <button
+              onClick={fetchLive}
+              disabled={liveLoading}
+              style={{
+                background: liveLoading ? "#23272B" : "#EDEEF0",
+                color: liveLoading ? "#8B9198" : "#0B0D0F",
+                border: "none",
+                borderRadius: 8,
+                padding: "7px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: liveLoading ? "default" : "pointer",
+              }}
+            >
+              {liveLoading ? "Fetching…" : "Fetch live weather"}
+            </button>
           </div>
         </div>
+        {liveError && (
+          <div style={{ marginTop: 10, fontSize: 12, color: "#E5484D" }}>{liveError}</div>
+        )}
 
         {/* Alert banner */}
         {showAlert && (
