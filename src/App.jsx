@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -10,14 +10,12 @@ import {
 } from "recharts";
 import Papa from "papaparse";
 
-// ---- Seed data (from the user's actual sheet, duplicates removed) ----
 const SEED = [
   { time: "2026-07-03T09:30", temp: 35.2, wind: 5.8, humidity: 53 },
   { time: "2026-07-03T10:00", temp: 35.1, wind: 5.8, humidity: 53 },
   { time: "2026-07-03T10:15", temp: 35.1, wind: 5.8, humidity: 53 },
 ];
 
-// IMD-derived thresholds for plains — flagged to the user as approximate / worth re-verifying
 const ZONES = [
   { key: "normal", label: "Normal", max: 40, color: "#4FA8E0" },
   { key: "heat", label: "Heat Wave", max: 45, color: "#FF7A45" },
@@ -39,6 +37,28 @@ function fmtTime(t) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function useCountUp(target, duration = 700) {
+  const [display, setDisplay] = useState(target);
+  const fromRef = useRef(target);
+  useEffect(() => {
+    const from = fromRef.current;
+    const to = target;
+    if (from === to) return;
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(from + (to - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return display;
 }
 
 function Gauge({ temp }) {
@@ -84,6 +104,7 @@ function Gauge({ temp }) {
           stroke="#EDEEF0"
           strokeWidth={3}
           strokeLinecap="round"
+          style={{ transition: "all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
         />
         <circle cx={cx} cy={cy} r={5} fill="#EDEEF0" />
       </svg>
@@ -112,6 +133,7 @@ function Gauge({ temp }) {
             color: zone.color,
             border: `1px solid ${zone.color}55`,
             background: `${zone.color}14`,
+            transition: "color 0.3s, border-color 0.3s, background 0.3s",
           }}
         >
           {zone.label}
@@ -156,12 +178,37 @@ const LAT = 28.4595;
 const LON = 77.0266;
 const OPEN_METEO_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,wind_speed_10m,relative_humidity_2m`;
 
+const KEYFRAMES = `
+@keyframes ringPulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes screenFlash {
+  0% { opacity: 0.32; }
+  100% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes popIn {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+`;
+
 export default function WeatherDashboard() {
   const [rows, setRows] = useState(SEED);
   const [range, setRange] = useState("all");
   const [importMsg, setImportMsg] = useState("");
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState("");
+  const [pulseCount, setPulseCount] = useState(0);
+  const [flash, setFlash] = useState(null);
+  const [shakeKey, setShakeKey] = useState(0);
   const fileRef = React.useRef(null);
 
   const fetchLive = useCallback(async () => {
@@ -180,10 +227,13 @@ export default function WeatherDashboard() {
         humidity: c.relative_humidity_2m,
       };
       setRows((prev) => {
-        // avoid an exact duplicate if the same timestamp is fetched twice in a row
         if (prev.length && prev[prev.length - 1].time === newRow.time) return prev;
         return [...prev, newRow];
       });
+      setPulseCount((n) => n + 1);
+      const z = classify(newRow.temp);
+      setFlash({ color: z.color, key: Date.now() });
+      if (z.key === "severe") setShakeKey((k) => k + 1);
     } catch (err) {
       setLiveError(
         err instanceof Error
@@ -207,8 +257,11 @@ export default function WeatherDashboard() {
   const latest = filtered[filtered.length - 1] || rows[rows.length - 1];
   const zone = classify(latest.temp);
   const showAlert = zone.key !== "normal";
-
   const chartData = filtered.map((r) => ({ ...r, label: fmtTime(r.time) }));
+
+  const dispTemp = useCountUp(latest.temp);
+  const dispHumidity = useCountUp(latest.humidity);
+  const dispWind = useCountUp(latest.wind);
 
   const handleFile = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -247,17 +300,35 @@ export default function WeatherDashboard() {
 
   return (
     <div
+      key={shakeKey}
       style={{
         background: "#0B0D0F",
         minHeight: "100%",
         color: "#EDEEF0",
-        fontFamily:
-          "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         padding: "28px 20px 40px",
+        position: "relative",
+        animation: shakeKey > 0 ? "shake 0.5s" : "none",
       }}
     >
+      <style>{KEYFRAMES}</style>
+
+      {flash && (
+        <div
+          key={flash.key}
+          onAnimationEnd={() => setFlash(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: flash.color,
+            pointerEvents: "none",
+            zIndex: 50,
+            animation: "screenFlash 0.7s ease-out forwards",
+          }}
+        />
+      )}
+
       <div style={{ maxWidth: 880, margin: "0 auto" }}>
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
           <div>
             <div style={{ fontSize: 12, color: "#8B9198", letterSpacing: 1, textTransform: "uppercase" }}>
@@ -265,35 +336,72 @@ export default function WeatherDashboard() {
             </div>
             <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 600 }}>Gurugram, India</h1>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-            <div style={{ fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>
-              28.4595°N, 77.0266°E · plains
-            </div>
+          <div style={{ fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>
+            28.4595°N, 77.0266°E · plains
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: 26,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "36px 16px",
+            background: "#14171A",
+            border: "1px solid #23272B",
+            borderRadius: 16,
+          }}
+        >
+          <div style={{ position: "relative", width: 160, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {!liveLoading && (
+              <>
+                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite" }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite 1.1s" }} />
+              </>
+            )}
             <button
               onClick={fetchLive}
               disabled={liveLoading}
               style={{
-                background: liveLoading ? "#23272B" : "#EDEEF0",
-                color: liveLoading ? "#8B9198" : "#0B0D0F",
+                position: "relative",
+                width: 140,
+                height: 140,
+                borderRadius: "50%",
                 border: "none",
-                borderRadius: 8,
-                padding: "7px 14px",
-                fontSize: 13,
-                fontWeight: 600,
+                background: `radial-gradient(circle at 35% 30%, ${zone.color}, ${zone.color}cc)`,
+                color: "#0B0D0F",
+                fontWeight: 700,
+                fontSize: 15,
+                letterSpacing: 0.3,
                 cursor: liveLoading ? "default" : "pointer",
+                boxShadow: `0 0 40px ${zone.color}55`,
+                transition: "transform 0.15s ease",
+                whiteSpace: "pre-line",
               }}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
             >
-              {liveLoading ? "Fetching…" : "Fetch live weather"}
+              {liveLoading ? "CHECKING…" : "CHECK\nTHE SKY"}
             </button>
           </div>
+          <div style={{ marginTop: 18, fontSize: 13, color: "#8B9198", textAlign: "center" }}>
+            Tap to pull a live reading straight from the sky above Gurugram right now.
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: "#5C6167", fontFamily: "ui-monospace, monospace" }}>
+            {pulseCount === 0
+              ? "You haven't checked yet this session"
+              : `You've checked the sky ${pulseCount} time${pulseCount > 1 ? "s" : ""} this session`}
+          </div>
+          {liveError && (
+            <div style={{ marginTop: 10, fontSize: 12, color: "#E5484D" }}>{liveError}</div>
+          )}
         </div>
-        {liveError && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#E5484D" }}>{liveError}</div>
-        )}
 
-        {/* Alert banner */}
         {showAlert && (
           <div
+            key={`alert-${latest.time}`}
             style={{
               marginTop: 18,
               padding: "12px 16px",
@@ -303,6 +411,7 @@ export default function WeatherDashboard() {
               display: "flex",
               alignItems: "center",
               gap: 10,
+              animation: "popIn 0.4s ease-out",
             }}
           >
             <div style={{ width: 8, height: 8, borderRadius: 999, background: zone.color, flexShrink: 0 }} />
@@ -313,16 +422,15 @@ export default function WeatherDashboard() {
           </div>
         )}
 
-        {/* Main grid */}
         <div style={{ marginTop: 22, display: "flex", gap: 20, flexWrap: "wrap" }}>
           <div style={{ background: "#14171A", border: "1px solid #23272B", borderRadius: 12, padding: 16 }}>
-            <Gauge temp={latest.temp} />
+            <Gauge temp={dispTemp} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minWidth: 260 }}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <ScoreCard label="Temperature" value={latest.temp.toFixed(1)} unit="°C" accent="#FF7A45" />
-              <ScoreCard label="Humidity" value={latest.humidity} unit="%" accent="#4FA8E0" />
-              <ScoreCard label="Wind" value={latest.wind} unit="km/h" accent="#8B9198" />
+              <ScoreCard label="Temperature" value={dispTemp.toFixed(1)} unit="°C" accent="#FF7A45" />
+              <ScoreCard label="Humidity" value={Math.round(dispHumidity)} unit="%" accent="#4FA8E0" />
+              <ScoreCard label="Wind" value={dispWind.toFixed(1)} unit="km/h" accent="#8B9198" />
             </div>
             <div style={{ fontSize: 12, color: "#5C6167" }}>
               Last reading: {fmtTime(latest.time)}
@@ -330,7 +438,6 @@ export default function WeatherDashboard() {
           </div>
         </div>
 
-        {/* Range filter */}
         <div style={{ marginTop: 26, display: "flex", gap: 8 }}>
           {[
             { k: "24h", label: "24h" },
@@ -355,7 +462,6 @@ export default function WeatherDashboard() {
           ))}
         </div>
 
-        {/* Chart */}
         <div style={{ marginTop: 14, background: "#14171A", border: "1px solid #23272B", borderRadius: 12, padding: "16px 8px 8px" }}>
           <div style={{ fontSize: 12, color: "#8B9198", padding: "0 12px 8px", textTransform: "uppercase", letterSpacing: 0.3 }}>
             Temperature trend
@@ -369,20 +475,17 @@ export default function WeatherDashboard() {
                 contentStyle={{ background: "#0B0D0F", border: "1px solid #23272B", borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: "#8B9198" }}
               />
-              <Line type="monotone" dataKey="temp" stroke="#FF7A45" strokeWidth={2} dot={{ r: 3 }} name="°C" />
+              <Line type="monotone" dataKey="temp" stroke="#FF7A45" strokeWidth={2} dot={{ r: 3 }} name="°C" isAnimationActive={true} animationDuration={500} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Data import + note */}
         <div style={{ marginTop: 24, padding: 16, background: "#14171A", border: "1px solid #23272B", borderRadius: 12 }}>
           <div style={{ fontSize: 13, color: "#8B9198", lineHeight: 1.6 }}>
-            This dashboard can't authenticate to your private Google Sheet directly, so it's
-            showing the sample rows from your sheet as of when I last checked it. To refresh it
-            with your latest data: open your sheet → File → Share → Publish to web → export as
-            CSV, download that file, then upload it below. (I have not re-verified Google Sheets'
-            exact current menu wording for this — if it looks different, look for a "Publish to
-            web" or "Download → CSV" option.)
+            This dashboard can't authenticate to your private Google Sheet directly. Use "Check
+            the Sky" above for a live reading, or upload a CSV export of your sheet below (File →
+            Share → Publish to web → export as CSV — I have not re-verified Google Sheets' exact
+            current wording for this).
           </div>
           <input
             ref={fileRef}
