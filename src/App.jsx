@@ -11,15 +11,15 @@ import {
 import Papa from "papaparse";
 
 const SEED = [
-  { time: "2026-07-03T09:30", temp: 35.2, wind: 5.8, humidity: 53 },
-  { time: "2026-07-03T10:00", temp: 35.1, wind: 5.8, humidity: 53 },
-  { time: "2026-07-03T10:15", temp: 35.1, wind: 5.8, humidity: 53 },
+  { time: "2026-07-03T09:30", temp: 35.2, wind: 5.8, humidity: 53, precip: 0 },
+  { time: "2026-07-03T10:00", temp: 35.1, wind: 5.8, humidity: 53, precip: 0 },
+  { time: "2026-07-03T10:15", temp: 35.1, wind: 5.8, humidity: 53, precip: 0 },
 ];
 
 const ZONES = [
-  { key: "normal", label: "Normal", max: 40, color: "#4FA8E0" },
-  { key: "heat", label: "Heat Wave", max: 45, color: "#FF7A45" },
-  { key: "severe", label: "Severe Heat Wave", max: 55, color: "#E5484D" },
+  { key: "normal", label: "Normal", color: "#00E5C7" },
+  { key: "heat", label: "Heat Wave", color: "#FF9F1C" },
+  { key: "severe", label: "Severe Heat Wave", color: "#FF3D7F" },
 ];
 
 function classify(temp) {
@@ -61,6 +61,19 @@ function useCountUp(target, duration = 700) {
   return display;
 }
 
+// Decide which "scene" to play based on the reading, plus whether it's day or night
+// (derived from the reading's own local hour, not the visitor's browser clock, since
+// the site is about Gurugram specifically, not wherever the visitor happens to be).
+function pickScene(row) {
+  const hour = new Date(row.time).getHours();
+  const isDay = hour >= 6 && hour < 19;
+  const isRaining = (row.precip ?? 0) > 0.1;
+  const isHotDry = row.temp >= 34 && row.humidity < 40;
+  if (isRaining) return { type: "rain", isDay };
+  if (isHotDry) return { type: "desert", isDay };
+  return { type: "swirl", isDay };
+}
+
 function Gauge({ temp }) {
   const zone = classify(temp);
   const pct = Math.max(0, Math.min(1, temp / 55));
@@ -77,65 +90,25 @@ function Gauge({ temp }) {
     const [x2, y2] = toXY(endDeg);
     const large = endDeg - startDeg > 180 ? 1 : 0;
     return (
-      <path
-        key={key}
-        d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`}
-        stroke={color}
-        strokeWidth={14}
-        strokeLinecap="round"
-        fill="none"
-        opacity={0.9}
-      />
+      <path key={key} d={`M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`}
+        stroke={color} strokeWidth={14} strokeLinecap="round" fill="none" opacity={0.9} />
     );
   };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
       <svg width="220" height="140" viewBox="0 0 220 140">
-        {arc(180, 209, "#4FA8E0", "z0")}
-        {arc(209, 253, "#4FA8E0", "z0b")}
-        {arc(253, 297, "#FF7A45", "z1")}
-        {arc(297, 360, "#E5484D", "z2")}
-        <line
-          x1={cx}
-          y1={cy}
-          x2={cx + r * 0.75 * Math.cos((angle * Math.PI) / 180)}
-          y2={cy + r * 0.75 * Math.sin((angle * Math.PI) / 180)}
-          stroke="#EDEEF0"
-          strokeWidth={3}
-          strokeLinecap="round"
-          style={{ transition: "all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
-        />
-        <circle cx={cx} cy={cy} r={5} fill="#EDEEF0" />
+        {arc(180, 240, "#00E5C7", "z0")}
+        {arc(240, 300, "#FF9F1C", "z1")}
+        {arc(300, 360, "#FF3D7F", "z2")}
+        <line x1={cx} y1={cy} x2={cx + r * 0.75 * Math.cos((angle * Math.PI) / 180)} y2={cy + r * 0.75 * Math.sin((angle * Math.PI) / 180)}
+          stroke="#F5F0FF" strokeWidth={3} strokeLinecap="round" style={{ transition: "all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)" }} />
+        <circle cx={cx} cy={cy} r={5} fill="#F5F0FF" />
       </svg>
       <div style={{ marginTop: -8, textAlign: "center" }}>
-        <div
-          style={{
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            fontSize: 44,
-            fontWeight: 600,
-            color: "#EDEEF0",
-            lineHeight: 1,
-          }}
-        >
-          {temp.toFixed(1)}
-          <span style={{ fontSize: 20, color: "#8B9198" }}>°C</span>
+        <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 44, fontWeight: 700, color: "#F5F0FF", lineHeight: 1 }}>
+          {temp.toFixed(1)}<span style={{ fontSize: 20, color: "#B8AEDB" }}>°C</span>
         </div>
-        <div
-          style={{
-            marginTop: 6,
-            display: "inline-block",
-            padding: "3px 10px",
-            borderRadius: 999,
-            fontSize: 12,
-            letterSpacing: 0.4,
-            textTransform: "uppercase",
-            color: zone.color,
-            border: `1px solid ${zone.color}55`,
-            background: `${zone.color}14`,
-            transition: "color 0.3s, border-color 0.3s, background 0.3s",
-          }}
-        >
+        <div style={{ marginTop: 6, display: "inline-block", padding: "3px 12px", borderRadius: 999, fontSize: 12, letterSpacing: 0.4, textTransform: "uppercase", color: zone.color, border: `1px solid ${zone.color}66`, background: `${zone.color}1a`, transition: "all 0.3s" }}>
           {zone.label}
         </div>
       </div>
@@ -145,59 +118,98 @@ function Gauge({ temp }) {
 
 function ScoreCard({ label, value, unit, accent }) {
   return (
-    <div
-      style={{
-        background: "#14171A",
-        border: "1px solid #23272B",
-        borderRadius: 12,
-        padding: "16px 18px",
-        flex: 1,
-        minWidth: 130,
-      }}
-    >
-      <div style={{ fontSize: 12, color: "#8B9198", letterSpacing: 0.3, textTransform: "uppercase" }}>
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: 6,
-          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-          fontSize: 28,
-          fontWeight: 600,
-          color: accent,
-        }}
-      >
-        {value}
-        <span style={{ fontSize: 14, color: "#8B9198", marginLeft: 4 }}>{unit}</span>
+    <div style={{ background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14, padding: "16px 18px", flex: 1, minWidth: 130 }}>
+      <div style={{ fontSize: 12, color: "#B8AEDB", letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</div>
+      <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 28, fontWeight: 700, color: accent }}>
+        {value}<span style={{ fontSize: 14, color: "#B8AEDB", marginLeft: 4 }}>{unit}</span>
       </div>
     </div>
   );
 }
 
+// ---- Scene overlays: pure CSS/SVG animation, no video files ----
+function RainScene({ isDay }) {
+  const drops = useMemo(() => Array.from({ length: 45 }, (_, i) => ({
+    left: Math.random() * 100,
+    delay: Math.random() * 1.4,
+    dur: 0.8 + Math.random() * 0.7,
+    hue: [ "#00E5C7", "#7B61FF", "#FF6FB5", "#5CC8FF" ][i % 4],
+  })), []);
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: 16, background: isDay ? "linear-gradient(180deg,#241A3D,#120B22)" : "linear-gradient(180deg,#0A0616,#05030C)" }}>
+      {drops.map((d, i) => (
+        <span key={i} style={{
+          position: "absolute", top: -40, left: `${d.left}%`, width: 2, height: 34,
+          background: `linear-gradient(180deg, transparent, ${d.hue})`,
+          animation: `rainFall ${d.dur}s linear ${d.delay}s infinite`,
+          filter: `drop-shadow(0 0 4px ${d.hue})`,
+        }} />
+      ))}
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 50% 20%, #7B61FF33, transparent 60%)", animation: "gentlePulse 3s ease-in-out infinite" }} />
+    </div>
+  );
+}
+
+function DesertScene({ isDay }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: 16, background: isDay ? "linear-gradient(180deg,#3D1F3A,#1A0E28)" : "linear-gradient(180deg,#150826,#08040F)" }}>
+      <div style={{
+        position: "absolute", top: isDay ? 24 : 20, right: 40, width: 60, height: 60, borderRadius: "50%",
+        background: isDay ? "radial-gradient(circle, #FFD23F, #FF6FB5)" : "radial-gradient(circle, #E8E4F5, #7B61FF)",
+        boxShadow: isDay ? "0 0 60px #FFD23Faa" : "0 0 40px #7B61FFaa",
+        animation: "sunPulse 2.4s ease-in-out infinite",
+      }} />
+      {!isDay && Array.from({ length: 18 }).map((_, i) => (
+        <span key={i} style={{ position: "absolute", top: `${Math.random() * 50}%`, left: `${Math.random() * 100}%`, width: 2, height: 2, background: "#F5F0FF", borderRadius: "50%", animation: `twinkle ${1.5 + Math.random()}s ease-in-out infinite` }} />
+      ))}
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{
+          position: "absolute", bottom: -10 + i * 18, left: -20, right: -20, height: 60,
+          background: `linear-gradient(90deg, transparent, ${["#FF9F1C", "#FF3D7F", "#7B61FF"][i]}55, transparent)`,
+          animation: `heatShimmer ${2.5 + i * 0.4}s ease-in-out infinite`,
+          filter: "blur(6px)",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function SwirlScene({ isDay }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", borderRadius: 16, background: isDay ? "linear-gradient(135deg,#2A1A4A,#160B2E)" : "linear-gradient(135deg,#0F0820,#050310)" }}>
+      <div style={{ position: "absolute", width: "160%", height: "160%", top: "-30%", left: "-30%", background: "conic-gradient(from 0deg, #7B61FF, #FF6FB5, #00E5C7, #FFD23F, #7B61FF)", opacity: 0.35, animation: "spin 8s linear infinite", filter: "blur(30px)" }} />
+    </div>
+  );
+}
+
+function Scene({ scene }) {
+  if (!scene) return null;
+  if (scene.type === "rain") return <RainScene isDay={scene.isDay} />;
+  if (scene.type === "desert") return <DesertScene isDay={scene.isDay} />;
+  return <SwirlScene isDay={scene.isDay} />;
+}
+
 const LAT = 28.4595;
 const LON = 77.0266;
-const OPEN_METEO_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,wind_speed_10m,relative_humidity_2m`;
+const BASE_PARAMS = "temperature_2m,wind_speed_10m,relative_humidity_2m";
+const FULL_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=${BASE_PARAMS},precipitation&timezone=Asia%2FKolkata`;
+const FALLBACK_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=${BASE_PARAMS}&timezone=Asia%2FKolkata`;
 
 const KEYFRAMES = `
-@keyframes ringPulse {
-  0% { transform: scale(1); opacity: 0.55; }
-  100% { transform: scale(1.9); opacity: 0; }
+@keyframes bgDrift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
-@keyframes screenFlash {
-  0% { opacity: 0.32; }
-  100% { opacity: 0; }
-}
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-6px); }
-  40% { transform: translateX(6px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(4px); }
-}
-@keyframes popIn {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
+@keyframes ringPulse { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+@keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes rainFall { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(340px); opacity: 0; } }
+@keyframes gentlePulse { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+@keyframes sunPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+@keyframes twinkle { 0%,100% { opacity: 0.2; } 50% { opacity: 1; } }
+@keyframes heatShimmer { 0%,100% { transform: translateX(0) scaleY(1); } 50% { transform: translateX(10px) scaleY(1.3); } }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 `;
 
 export default function WeatherDashboard() {
@@ -207,15 +219,16 @@ export default function WeatherDashboard() {
   const [liveLoading, setLiveLoading] = useState(false);
   const [liveError, setLiveError] = useState("");
   const [pulseCount, setPulseCount] = useState(0);
-  const [flash, setFlash] = useState(null);
   const [shakeKey, setShakeKey] = useState(0);
+  const [scene, setScene] = useState(null);
   const fileRef = React.useRef(null);
 
   const fetchLive = useCallback(async () => {
     setLiveLoading(true);
     setLiveError("");
     try {
-      const res = await fetch(OPEN_METEO_URL);
+      let res = await fetch(FULL_URL);
+      if (!res.ok) res = await fetch(FALLBACK_URL); // graceful fallback if `precipitation` isn't accepted here
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
       const data = await res.json();
       const c = data.current;
@@ -225,21 +238,18 @@ export default function WeatherDashboard() {
         temp: c.temperature_2m,
         wind: c.wind_speed_10m,
         humidity: c.relative_humidity_2m,
+        precip: c.precipitation ?? 0,
       };
       setRows((prev) => {
         if (prev.length && prev[prev.length - 1].time === newRow.time) return prev;
         return [...prev, newRow];
       });
       setPulseCount((n) => n + 1);
-      const z = classify(newRow.temp);
-      setFlash({ color: z.color, key: Date.now() });
-      if (z.key === "severe") setShakeKey((k) => k + 1);
+      if (classify(newRow.temp).key === "severe") setShakeKey((k) => k + 1);
+      setScene(pickScene(newRow));
+      setTimeout(() => setScene(null), 3200);
     } catch (err) {
-      setLiveError(
-        err instanceof Error
-          ? `Couldn't fetch live weather: ${err.message}`
-          : "Couldn't fetch live weather."
-      );
+      setLiveError(err instanceof Error ? `Couldn't fetch live weather: ${err.message}` : "Couldn't fetch live weather.");
     } finally {
       setLiveLoading(false);
     }
@@ -258,7 +268,6 @@ export default function WeatherDashboard() {
   const zone = classify(latest.temp);
   const showAlert = zone.key !== "normal";
   const chartData = filtered.map((r) => ({ ...r, label: fmtTime(r.time) }));
-
   const dispTemp = useCountUp(latest.temp);
   const dispHumidity = useCountUp(latest.humidity);
   const dispWind = useCountUp(latest.wind);
@@ -267,236 +276,123 @@ export default function WeatherDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
     Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
+      header: true, skipEmptyLines: true,
       complete: (res) => {
         try {
-          const parsed = res.data
-            .map((row) => {
-              const keys = Object.keys(row);
-              const get = (name) =>
-                row[keys.find((k) => k.toLowerCase().includes(name))];
-              return {
-                time: get("date") || get("time"),
-                temp: parseFloat(get("temp")),
-                wind: parseFloat(get("wind")),
-                humidity: parseFloat(get("humid")),
-              };
-            })
-            .filter((r) => r.time && !isNaN(r.temp));
-          if (parsed.length === 0) {
-            setImportMsg("No valid rows found — check column headers (Date/Time, Temperature, Wind Speed, Humidity).");
-            return;
-          }
+          const parsed = res.data.map((row) => {
+            const keys = Object.keys(row);
+            const get = (name) => row[keys.find((k) => k.toLowerCase().includes(name))];
+            return { time: get("date") || get("time"), temp: parseFloat(get("temp")), wind: parseFloat(get("wind")), humidity: parseFloat(get("humid")), precip: 0 };
+          }).filter((r) => r.time && !isNaN(r.temp));
+          if (parsed.length === 0) { setImportMsg("No valid rows found — check column headers."); return; }
           setRows(parsed);
           setImportMsg(`Loaded ${parsed.length} rows from CSV.`);
-        } catch {
-          setImportMsg("Could not parse this file. Make sure it's a CSV export of your sheet.");
-        }
+        } catch { setImportMsg("Could not parse this file."); }
       },
       error: () => setImportMsg("Failed to read file."),
     });
   }, []);
 
   return (
-    <div
-      key={shakeKey}
-      style={{
-        background: "#0B0D0F",
-        minHeight: "100%",
-        color: "#EDEEF0",
-        fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        padding: "28px 20px 40px",
-        position: "relative",
-        animation: shakeKey > 0 ? "shake 0.5s" : "none",
-      }}
-    >
+    <div key={shakeKey} style={{
+      minHeight: "100%", color: "#F5F0FF",
+      fontFamily: "ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      padding: "28px 20px 40px", position: "relative", overflow: "hidden",
+      background: "linear-gradient(120deg, #0A0616, #1A0E32, #24123F, #150A28)",
+      backgroundSize: "300% 300%", animation: `bgDrift 18s ease-in-out infinite${shakeKey > 0 ? ", shake 0.5s" : ""}`,
+    }}>
       <style>{KEYFRAMES}</style>
 
-      {flash && (
-        <div
-          key={flash.key}
-          onAnimationEnd={() => setFlash(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: flash.color,
-            pointerEvents: "none",
-            zIndex: 50,
-            animation: "screenFlash 0.7s ease-out forwards",
-          }}
-        />
-      )}
-
-      <div style={{ maxWidth: 880, margin: "0 auto" }}>
+      <div style={{ maxWidth: 880, margin: "0 auto", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
           <div>
-            <div style={{ fontSize: 12, color: "#8B9198", letterSpacing: 1, textTransform: "uppercase" }}>
-              Weather Monitor
-            </div>
-            <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 600 }}>Gurugram, India</h1>
+            <div style={{ fontSize: 12, color: "#B8AEDB", letterSpacing: 1.5, textTransform: "uppercase" }}>Weather Monitor</div>
+            <h1 style={{ margin: "2px 0 0", fontSize: 28, fontWeight: 800, background: "linear-gradient(90deg,#FF6FB5,#7B61FF,#00E5C7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Gurugram, India</h1>
           </div>
-          <div style={{ fontSize: 12, color: "#8B9198", fontFamily: "ui-monospace, monospace" }}>
-            28.4595°N, 77.0266°E · plains
-          </div>
+          <div style={{ fontSize: 12, color: "#B8AEDB", fontFamily: "ui-monospace, monospace" }}>28.4595°N, 77.0266°E · plains</div>
         </div>
 
-        <div
-          style={{
-            marginTop: 26,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: "36px 16px",
-            background: "#14171A",
-            border: "1px solid #23272B",
-            borderRadius: 16,
-          }}
-        >
-          <div style={{ position: "relative", width: 160, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {!liveLoading && (
-              <>
+        <div style={{ marginTop: 26, position: "relative", display: "flex", flexDirection: "column", alignItems: "center", padding: "36px 16px", background: "rgba(20,12,34,0.55)", backdropFilter: "blur(10px)", border: "1px solid #3A2A5C", borderRadius: 16, overflow: "hidden", minHeight: 260 }}>
+          <Scene scene={scene} />
+          <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ position: "relative", width: 160, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {!liveLoading && (<>
                 <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite" }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `2px solid ${zone.color}`, animation: "ringPulse 2.2s ease-out infinite 1.1s" }} />
-              </>
-            )}
-            <button
-              onClick={fetchLive}
-              disabled={liveLoading}
-              style={{
-                position: "relative",
-                width: 140,
-                height: 140,
-                borderRadius: "50%",
-                border: "none",
-                background: `radial-gradient(circle at 35% 30%, ${zone.color}, ${zone.color}cc)`,
-                color: "#0B0D0F",
-                fontWeight: 700,
-                fontSize: 15,
-                letterSpacing: 0.3,
-                cursor: liveLoading ? "default" : "pointer",
-                boxShadow: `0 0 40px ${zone.color}55`,
-                transition: "transform 0.15s ease",
-                whiteSpace: "pre-line",
+              </>)}
+              <button onClick={fetchLive} disabled={liveLoading} style={{
+                position: "relative", width: 140, height: 140, borderRadius: "50%", border: "none",
+                background: `conic-gradient(from 180deg, #FF6FB5, #7B61FF, #00E5C7, #FFD23F, #FF6FB5)`,
+                color: "#0A0616", fontWeight: 800, fontSize: 15, letterSpacing: 0.3,
+                cursor: liveLoading ? "default" : "pointer", boxShadow: `0 0 50px ${zone.color}55`,
+                transition: "transform 0.15s ease", whiteSpace: "pre-line",
               }}
-              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
-              onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-            >
-              {liveLoading ? "CHECKING…" : "CHECK\nTHE SKY"}
-            </button>
+                onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+                onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                {liveLoading ? "CHECKING…" : "CHECK\nTHE SKY"}
+              </button>
+            </div>
+            <div style={{ marginTop: 18, fontSize: 13, color: "#D8CFF0", textAlign: "center" }}>Tap to pull a live reading — the scene reacts to what it finds.</div>
+            <div style={{ marginTop: 6, fontSize: 12, color: "#8A7FB0", fontFamily: "ui-monospace, monospace" }}>
+              {pulseCount === 0 ? "You haven't checked yet this session" : `Checked ${pulseCount} time${pulseCount > 1 ? "s" : ""} this session`}
+            </div>
+            {liveError && <div style={{ marginTop: 10, fontSize: 12, color: "#FF3D7F" }}>{liveError}</div>}
           </div>
-          <div style={{ marginTop: 18, fontSize: 13, color: "#8B9198", textAlign: "center" }}>
-            Tap to pull a live reading straight from the sky above Gurugram right now.
-          </div>
-          <div style={{ marginTop: 6, fontSize: 12, color: "#5C6167", fontFamily: "ui-monospace, monospace" }}>
-            {pulseCount === 0
-              ? "You haven't checked yet this session"
-              : `You've checked the sky ${pulseCount} time${pulseCount > 1 ? "s" : ""} this session`}
-          </div>
-          {liveError && (
-            <div style={{ marginTop: 10, fontSize: 12, color: "#E5484D" }}>{liveError}</div>
-          )}
         </div>
 
         {showAlert && (
-          <div
-            key={`alert-${latest.time}`}
-            style={{
-              marginTop: 18,
-              padding: "12px 16px",
-              borderRadius: 10,
-              background: `${zone.color}18`,
-              border: `1px solid ${zone.color}55`,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              animation: "popIn 0.4s ease-out",
-            }}
-          >
+          <div key={`alert-${latest.time}`} style={{ marginTop: 18, padding: "12px 16px", borderRadius: 10, background: `${zone.color}1a`, border: `1px solid ${zone.color}66`, display: "flex", alignItems: "center", gap: 10, animation: "popIn 0.4s ease-out" }}>
             <div style={{ width: 8, height: 8, borderRadius: 999, background: zone.color, flexShrink: 0 }} />
-            <div style={{ fontSize: 14 }}>
-              <strong style={{ color: zone.color }}>{zone.label} alert</strong> — current reading{" "}
-              {latest.temp.toFixed(1)}°C meets IMD's plains threshold for this category.
-            </div>
+            <div style={{ fontSize: 14 }}><strong style={{ color: zone.color }}>{zone.label} alert</strong> — current reading {latest.temp.toFixed(1)}°C meets IMD's plains threshold for this category.</div>
           </div>
         )}
 
         <div style={{ marginTop: 22, display: "flex", gap: 20, flexWrap: "wrap" }}>
-          <div style={{ background: "#14171A", border: "1px solid #23272B", borderRadius: 12, padding: 16 }}>
+          <div style={{ background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14, padding: 16 }}>
             <Gauge temp={dispTemp} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minWidth: 260 }}>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <ScoreCard label="Temperature" value={dispTemp.toFixed(1)} unit="°C" accent="#FF7A45" />
-              <ScoreCard label="Humidity" value={Math.round(dispHumidity)} unit="%" accent="#4FA8E0" />
-              <ScoreCard label="Wind" value={dispWind.toFixed(1)} unit="km/h" accent="#8B9198" />
+              <ScoreCard label="Temperature" value={dispTemp.toFixed(1)} unit="°C" accent="#FF9F1C" />
+              <ScoreCard label="Humidity" value={Math.round(dispHumidity)} unit="%" accent="#00E5C7" />
+              <ScoreCard label="Wind" value={dispWind.toFixed(1)} unit="km/h" accent="#7B61FF" />
             </div>
-            <div style={{ fontSize: 12, color: "#5C6167" }}>
-              Last reading: {fmtTime(latest.time)}
-            </div>
+            <div style={{ fontSize: 12, color: "#8A7FB0" }}>Last reading: {fmtTime(latest.time)}</div>
           </div>
         </div>
 
         <div style={{ marginTop: 26, display: "flex", gap: 8 }}>
-          {[
-            { k: "24h", label: "24h" },
-            { k: "7d", label: "7 days" },
-            { k: "all", label: "All" },
-          ].map((r) => (
-            <button
-              key={r.k}
-              onClick={() => setRange(r.k)}
-              style={{
-                background: range === r.k ? "#EDEEF0" : "transparent",
-                color: range === r.k ? "#0B0D0F" : "#8B9198",
-                border: "1px solid #23272B",
-                borderRadius: 8,
-                padding: "6px 14px",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              {r.label}
-            </button>
+          {[{ k: "24h", label: "24h" }, { k: "7d", label: "7 days" }, { k: "all", label: "All" }].map((r) => (
+            <button key={r.k} onClick={() => setRange(r.k)} style={{
+              background: range === r.k ? "linear-gradient(90deg,#FF6FB5,#7B61FF)" : "transparent",
+              color: range === r.k ? "#0A0616" : "#B8AEDB", border: "1px solid #3A2A5C", borderRadius: 8,
+              padding: "6px 14px", fontSize: 13, cursor: "pointer", fontWeight: range === r.k ? 700 : 400,
+            }}>{r.label}</button>
           ))}
         </div>
 
-        <div style={{ marginTop: 14, background: "#14171A", border: "1px solid #23272B", borderRadius: 12, padding: "16px 8px 8px" }}>
-          <div style={{ fontSize: 12, color: "#8B9198", padding: "0 12px 8px", textTransform: "uppercase", letterSpacing: 0.3 }}>
-            Temperature trend
-          </div>
+        <div style={{ marginTop: 14, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14, padding: "16px 8px 8px" }}>
+          <div style={{ fontSize: 12, color: "#B8AEDB", padding: "0 12px 8px", textTransform: "uppercase", letterSpacing: 0.3 }}>Temperature trend</div>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid stroke="#23272B" strokeDasharray="3 3" />
-              <XAxis dataKey="label" stroke="#5C6167" fontSize={11} tickLine={false} />
-              <YAxis stroke="#5C6167" fontSize={11} tickLine={false} domain={[20, 50]} />
-              <Tooltip
-                contentStyle={{ background: "#0B0D0F", border: "1px solid #23272B", borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: "#8B9198" }}
-              />
-              <Line type="monotone" dataKey="temp" stroke="#FF7A45" strokeWidth={2} dot={{ r: 3 }} name="°C" isAnimationActive={true} animationDuration={500} />
+              <CartesianGrid stroke="#3A2A5C" strokeDasharray="3 3" />
+              <XAxis dataKey="label" stroke="#8A7FB0" fontSize={11} tickLine={false} />
+              <YAxis stroke="#8A7FB0" fontSize={11} tickLine={false} domain={[20, 50]} />
+              <Tooltip contentStyle={{ background: "#0A0616", border: "1px solid #3A2A5C", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#B8AEDB" }} />
+              <Line type="monotone" dataKey="temp" stroke="#FF6FB5" strokeWidth={2.5} dot={{ r: 3, fill: "#7B61FF" }} name="°C" isAnimationActive animationDuration={500} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div style={{ marginTop: 24, padding: 16, background: "#14171A", border: "1px solid #23272B", borderRadius: 12 }}>
-          <div style={{ fontSize: 13, color: "#8B9198", lineHeight: 1.6 }}>
-            This dashboard can't authenticate to your private Google Sheet directly. Use "Check
-            the Sky" above for a live reading, or upload a CSV export of your sheet below (File →
-            Share → Publish to web → export as CSV — I have not re-verified Google Sheets' exact
-            current wording for this).
+        <div style={{ marginTop: 24, padding: 16, background: "rgba(20,12,34,0.7)", backdropFilter: "blur(6px)", border: "1px solid #3A2A5C", borderRadius: 14 }}>
+          <div style={{ fontSize: 13, color: "#B8AEDB", lineHeight: 1.6 }}>
+            This dashboard can't authenticate to your private Google Sheet directly. Use "Check the Sky"
+            above for a live reading, or upload a CSV export of your sheet below.
           </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFile}
-            style={{ marginTop: 12, fontSize: 13, color: "#8B9198" }}
-          />
-          {importMsg && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "#4FA8E0" }}>{importMsg}</div>
-          )}
+          <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ marginTop: 12, fontSize: 13, color: "#B8AEDB" }} />
+          {importMsg && <div style={{ marginTop: 8, fontSize: 12, color: "#00E5C7" }}>{importMsg}</div>}
         </div>
       </div>
     </div>
