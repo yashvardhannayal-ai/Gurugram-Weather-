@@ -250,6 +250,9 @@ function ThresholdPanel() {
 }
 
 
+const LAT = 28.4595;
+const LON = 77.0266;
+const BASE_PARAMS = "temperature_2m,wind_speed_10m,relative_humidity_2m";
 const FULL_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=${BASE_PARAMS},precipitation&timezone=Asia%2FKolkata`;
 const FALLBACK_URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=${BASE_PARAMS}&timezone=Asia%2FKolkata`;
 
